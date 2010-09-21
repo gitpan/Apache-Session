@@ -3,6 +3,12 @@ If you use perl older than 5.6 - write to alexchorny[AT]gmail.com
 and tell me what version do you use, why and will you need newer versions
 of Apache::Session.
 
+1.89   2010-09-22  by Alexandr Ciornii
+  - require Digest::MD5
+  - all semaphore tests were removed
+  - Apache::Session::Store::File::materialize should not append to $session->{serialized}
+  - Apache::Session::Store::File will flush after writing to file
+
 1.88   2008-12-20  by Alexandr Ciornii
   - Apache::Session::Generate::MD5::validate will untaint data
   - MIN_PERL_VERSION in Makefile.PL
