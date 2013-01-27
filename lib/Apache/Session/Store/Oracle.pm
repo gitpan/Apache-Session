@@ -17,7 +17,7 @@ use Apache::Session::Store::DBI;
 use vars qw(@ISA $VERSION);
 
 @ISA = qw(Apache::Session::Store::DBI);
-$VERSION = '1.01';
+$VERSION = '1.10';
 
 $Apache::Session::Store::Oracle::DataSource = undef;
 $Apache::Session::Store::Oracle::UserName   = undef;
@@ -28,6 +28,8 @@ sub connection {
     my $session = shift;
     
     return if (defined $self->{dbh});
+
+	$self->{'table_name'} = $session->{args}->{TableName} || $Apache::Session::Store::DBI::TableName;
 
     if (exists $session->{args}->{Handle}) {
         $self->{dbh} = $session->{args}->{Handle};
@@ -69,7 +71,7 @@ sub materialize {
     if (!defined $self->{materialize_sth}) {
         $self->{materialize_sth} = 
             $self->{dbh}->prepare_cached(qq{
-                SELECT a_session FROM sessions WHERE id = ? FOR UPDATE});
+                SELECT a_session FROM $self->{'table_name'} WHERE id = ? FOR UPDATE});
     }
     
     $self->{materialize_sth}->bind_param(1, $session->{data}->{_session_id});

@@ -1,20 +1,13 @@
 use Test::More;
 use Test::Deep;
-use Test::Exception;
-use File::Temp qw[tempdir];
-use Cwd qw[getcwd];
 
 plan skip_all => "Not running RDBM tests without APACHE_SESSION_MAINTAINER=1"
   unless $ENV{APACHE_SESSION_MAINTAINER};
 plan skip_all => "Optional modules (DBD::Oracle, DBI) not installed"
   unless eval {
-               require DBI;
                require DBD::Oracle;
+               require DBI;
               };
-
-#my $origdir = getcwd;
-#my $tempdir = tempdir( DIR => '.', CLEANUP => 1 );
-#chdir( $tempdir );
 
 plan tests => 13;
 
@@ -22,12 +15,29 @@ my $package = 'Apache::Session::Oracle';
 use_ok $package;
 
 my $session = {};
+#$ENV{ORACLE_SID}='';$ENV{AS_ORACLE_USER}='test/test';
+my $dsn = "dbi:Oracle:$ENV{ORACLE_SID}";
+my $user = $ENV{AS_ORACLE_USER};
+my $pass = $ENV{AS_ORACLE_PASS};
+{
+    my $dbh = DBI->connect($dsn, $user, $pass, {RaiseError => 1, AutoCommit => 1, PrintError=>0, });
+    foreach my $table (qw/sessions_perl/) {
+        eval { $dbh->do("DROP TABLE $table", {RaiseError => 0, PrintError=>0, });};
+        $dbh->do(<<"EOT");
+ CREATE TABLE $table (
+    id varchar2(32) not null primary key,
+    a_session long
+ )
+EOT
+    }
+}
 
 tie %{$session}, $package, undef, {
-    DataSource => "dbi:Oracle:$ENV{ORACLE_SID}", 
-    UserName => $ENV{AS_ORACLE_USER}, 
-    Password => $ENV{AS_ORACLE_PASS},
-    Commit   => 1
+    DataSource => $dsn,
+    UserName => $user,
+    Password => $pass,
+    Commit   => 1,
+    TableName => 'sessions_perl',
 };
 
 ok tied(%{$session}), 'session tied';
@@ -44,10 +54,11 @@ undef $session;
 $session = {};
 
 tie %{$session}, $package, $id, {
-    DataSource => "dbi:Oracle:$ENV{ORACLE_SID}", 
-    UserName => $ENV{AS_ORACLE_USER}, 
-    Password => $ENV{AS_ORACLE_PASS},
-    Commit   => 1
+    DataSource => $dsn, 
+    UserName => $user, 
+    Password => $pass,
+    Commit   => 1,
+    TableName => 'sessions_perl',
 };
 
 ok tied(%{$session}), 'session tied';
@@ -63,12 +74,13 @@ untie %{$session};
 undef $session;
 $session = {};
 
-my $dbh = DBI->connect("dbi:Oracle:$ENV{ORACLE_SID}", $ENV{AS_ORACLE_USER}, $ENV{AS_ORACLE_PASS}, {RaiseError => 1, AutoCommit => 0});
+my $dbh = DBI->connect($dsn, $user, $pass, {RaiseError => 1, AutoCommit => 0});
 
 tie %{$session}, $package, $id, {
     Handle      => $dbh,
     Commit      => 0,
     LongReadLen => 20*2**10,
+    TableName => 'sessions_perl',
 };
 
 ok tied(%{$session}), 'session tied';
@@ -84,6 +96,7 @@ $session = {};
 tie %{$session}, $package, $id, {
     Handle => $dbh,
     Commit => 0,
+    TableName => 'sessions_perl',
 };
 
 ok tied(%{$session}), 'session tied';
@@ -98,5 +111,3 @@ untie %{$session};
 
 $dbh->commit;
 $dbh->disconnect;
-
-#chdir( $origdir );
