@@ -23,7 +23,7 @@ my @db_handles = Test::Database->handles('mysql');
 plan skip_all => "No mysql handle reported by Test::Database"
   unless @db_handles;
 
-plan tests => 13;
+plan tests => 23;
 
 my $package = 'Apache::Session::MySQL';
 use_ok $package;
@@ -37,8 +37,13 @@ diag "Mysql version ".$mysql->driver->version;
 my @tables_used = qw/sessions s/;
 sub drop_tables {
     my $dbh = shift;
-    foreach my $table (@_) {
-        $dbh->do("DROP TABLE IF EXISTS $table");
+    my $dblist = join(', ', @_);
+    my $res = $dbh->do("DROP TABLE IF EXISTS $dblist");
+    if (!defined $res and $dbh->errstr =~ /Cannot delete or update a parent row: a foreign key constraint/) {
+      my $ary_ref = $dbh->selectcol_arrayref('SHOW TABLES');
+      $dblist = join(', ', @$ary_ref);
+      diag "Found foreign key constraint, trying to drop all tables from DB";
+      $dbh->do("DROP TABLE IF EXISTS $dblist");
     }
 }
 
@@ -49,7 +54,7 @@ sub drop_tables {
         $dbh1->do(<<"EOT");
   CREATE TABLE $table (
     id char(32) not null primary key,
-    a_session text
+    a_session blob
   );
 EOT
     }
@@ -74,6 +79,7 @@ my $id = $session->{_session_id};
 
 my $foo = $session->{foo} = 'bar';
 my $baz = $session->{baz} = ['tom', 'dick', 'harry'];
+my $test_value = $session->{'test'} = 12; #test for RT#50896
 
 untie %{$session};
 undef $session;
@@ -94,10 +100,13 @@ is $session->{_session_id}, $id, 'id retrieved matches one stored';
 
 cmp_deeply $session->{foo}, $foo, "Foo matches";
 cmp_deeply $session->{baz}, $baz, "Baz matches";
+cmp_deeply $session->{test}, $test_value, "test matches";
 
 untie %{$session};
 undef $session;
 $session = {};
+
+{
 
 tie %{$session}, $package, undef, {
     TableName      => 's',
@@ -112,6 +121,54 @@ tie %{$session}, $package, undef, {
 ok tied(%{$session}), 'session tied';
 
 ok exists($session->{_session_id}), 'session id exists';
+my $id1 = $session->{_session_id};
+
+$session{'test'} = 13;
+
+untie %{$session};
+undef $session;
+$session = {};
+
+tie %{$session}, $package, $id1, {
+    TableName      => 's',
+    DataSource     => $dsn,
+    UserName       => $uname,
+    Password       => $upass,
+    LockDataSource => $dsn,
+    LockUserName   => $uname,
+    LockPassword   => $upass,
+};
+
+ok tied(%{$session}), 'session tied';
+
+ok exists($session->{_session_id}), 'session id exists';
+
+is($session->{_session_id}, $id1, 'session id is correct');
+is($session{'test'}, 13, 'correct value retrieved');
+
+untie %{$session};
+undef $session;
+$session = {};
+
+tie %{$session}, $package, $id1, { #test for RT#50896
+    TableName      => 's',
+    DataSource     => $dsn,
+    UserName       => $uname,
+    Password       => $upass,
+    LockDataSource => $dsn,
+    LockUserName   => $uname,
+    LockPassword   => $upass,
+};
+
+ok tied(%{$session}), 'session tied';
+
+ok exists($session->{_session_id}), 'session id exists';
+
+is($session->{_session_id}, $id1, 'session id is correct');
+is($session{'test'}, 13, 'correct value retrieved');
+
+}
+
 
 untie %{$session};
 undef $session;
@@ -130,6 +187,7 @@ is $session->{_session_id}, $id, 'id retrieved matches one stored';
 
 cmp_deeply $session->{foo}, $foo, "Foo matches";
 cmp_deeply $session->{baz}, $baz, "Baz matches";
+cmp_deeply $session->{'test'}, $test_value, "test matches";
 
 tied(%{$session})->delete;
 untie %{$session};
