@@ -40,7 +40,7 @@
    "provides" : {
       "Apache::Session" : {
          "file" : "lib/Apache/Session.pm",
-         "version" : "1.91"
+         "version" : "1.92"
       },
       "Apache::Session::DB_File" : {
          "file" : "lib/Apache/Session/DB_File.pm",
@@ -168,5 +168,5 @@
          "url" : "http://github.com/chorny/Apache-Session"
       }
    },
-   "version" : "1.91"
+   "version" : "1.92"
 }
