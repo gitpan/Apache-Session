@@ -10,6 +10,10 @@ plan skip_all => "Optional modules (Test::Database, DBD::mysql, DBI) not install
                require DBI;
               };
 
+my $dbd_mysq_ver = DBD::mysql->VERSION();
+plan skip_all => "Version $dbd_mysq_ver of DBD::mysql has serious problems on Windows"
+  if ($^O eq 'MSWin32' && $dbd_mysq_ver >= '4.021' && $dbd_mysq_ver <= '4.023');
+
 if ($ENV{TRAVIS}) {
     my $cfg = << 'EOT';
     driver_dsn  = dbi:mysql:
@@ -23,17 +27,21 @@ my @db_handles = Test::Database->handles('mysql');
 plan skip_all => "No mysql handle reported by Test::Database"
   unless @db_handles;
 
-plan tests => 23;
-
-my $package = 'Apache::Session::MySQL';
-use_ok $package;
-
 my $mysql = $db_handles[0];
 my $dsn = $mysql->dsn();
 my $uname = $mysql->username();
 my $upass = $mysql->password();
-diag "Mysql version ".$mysql->driver->version;
 diag "DBD::mysql version ".DBD::mysql->VERSION();
+
+plan skip_all => "Test::Database handle->driver is undef. Probably it was not possible to establish connection."
+  if !defined($mysql->driver);
+
+diag "Mysql version ".$mysql->driver->version;
+
+plan tests => 23;
+
+my $package = 'Apache::Session::MySQL';
+use_ok $package;
 
 my @tables_used = qw/sessions s/;
 sub drop_tables {
